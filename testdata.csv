@@ -1,0 +1,278 @@
+---
+title: "Census Project"
+output: pdf_document
+
+---
+1. Load requied libraries.
+Install package install.packages("caret")
+Install package install.packages("corrplot")
+Install package install.packages('Boruta')
+
+
+```{r library}
+library(ggplot2)
+library(corrplot)
+library(Boruta)
+library(caret)
+```
+
+
+2. Load census data.
+```{r census}
+
+setwd("c:/Ryerson University/Semester 4/ProjectCode")
+loc<-getwd()
+censusdata <- read.csv(file="census.csv",header=TRUE,sep=",", na.string = "?")
+
+```
+
+
+
+2.1. Divide the data into train and test data. 
+```{r}
+inTrain <- createDataPartition(y=censusdata$income, p= 0.75, list=FALSE)
+training <- censusdata[inTrain,]
+testing <- censusdata[-inTrain,]
+```
+
+
+3. Display dimensions, summary of data, names and structure of data.
+
+```{r }
+data <- training
+dim(data)
+nrow(data)
+ncol(data)
+dim(testing)
+summary(data)
+names(data)
+str(data)
+```
+
+
+4. Display Class Distributions.
+```{r}
+# Imbalance data 
+result = summary(data$income)/nrow(data) * 100
+ggplot(data=data,aes(income)) + geom_bar(aes(fill = income), color = "black")
+result 
+```
+
+
+5. Check and Cleaning missing values.
+
+```{r}
+cat("Number of missing values in training set is:", sum(is.na(data)), "\n")
+na_count <-sapply(data, function(y) sum(length(which(is.na(y)))))
+na_count <- data.frame(na_count)
+na_count
+nrow(data)
+data <- na.omit(data)
+nrow(data)
+nrow(testing)
+cat("Number of missing values in test set is:", sum(is.na(testing)), "\n")
+na_count1 <-sapply(testing, function(y) sum(length(which(is.na(y)))))
+na_count1
+testingdata <- na.omit(testing)
+nrow(testingdata)
+
+```
+5.1 Re-factoring the work class, occupation and native country after removing the NA values (exclude levels not required).
+
+```{r}
+
+data$workclass <- factor(data$workclass)
+data$occupation <- factor(data$occupation)
+data$native.country <- factor(data$native.country)
+```
+
+5.1 Re-factoring the work class, occupation and native country after removing the NA values (exclude levels not required) for testing data also.
+```{r}
+
+testingdata$workclass <- factor(testingdata$workclass)
+testingdata$occupation <- factor(testingdata$occupation)
+testingdata$native.country <- factor(testingdata$native.country)
+```
+
+
+
+6. Statistics of Numerical attributes
+
+```{r}
+# statistics of numerical attributes
+summary(data$age)
+sd(data$age)
+hist(data$age, main = "Distribution of Age",xlab = "Age of an Individual" ,col ="blue")
+boxplot(data$age,main="Age ")
+summary(data$education.num)
+sd(data$education.num)
+hist(data$education.num,main = "Distribution of Education in years",xlab="Education in Years (yrs)",col = "blue")
+boxplot(data$education.num,main="Distribution of Education")
+summary(data$capital.gain)
+sd(data$capital.gain)
+hist(data$capital.gain,main = "Distribution of Capital Gain",xlab="Capital Gain",col = "blue")
+boxplot(data$capital.gain,main="Capital Gain")
+summary(data$capital.loss)
+sd(data$capital.loss)
+hist(log10(data$capital.loss),main = "Distribution of Capital Loss",xlab="Capital Loss",col = "blue")
+boxplot(data$capital.loss,main="Capital Loss")
+summary(data$hours.per.week)
+sd(data$hours.per.week)
+hist(data$hours.per.week,main = "Distribution of Hours Worked per Week",xlab="Hours worked per week",col = "blue")
+boxplot(data$hours.per.week,main="Hours Worked per Week")
+
+```
+
+8. Exploratory analysis of the attribute native country.
+
+```{r}
+summary(data$native.country)
+
+```
+
+9.1 Reducing/Combining  levels of native country in training data.
+
+```{r}
+data$native.country <- as.character(data$native.country)
+asia <- c("Cambodia", "China", "Hong", "India", "Iran", "Japan", "Laos","Philippines", "Taiwan", "Thailand", "Vietnam")
+northAmerica <- c("Canada", "Cuba", "Dominican-Republic", "El-Salvador", "Guatemala","Haiti", "Honduras", "Jamaica", "Mexico", "Nicaragua","Outlying-US(Guam-USVI-etc)", "Puerto-Rico", "Trinadad&Tobago","United-States")
+southAmerica <- c("Columbia", "Ecuador", "Peru")
+europe <- c("England", "France", "Germany", "Greece", "Holand-Netherlands","Hungary", "Ireland", "Italy", "Poland", "Portugal", "Scotland",
+            "Yugoslavia")
+other <- c("South")
+data$native.country[data$native.country %in% northAmerica] <- "North America"
+data$native.country[data$native.country %in% asia] <- "Asia"
+data$native.country[data$native.country %in% southAmerica] <- "South America"
+data$native.country[data$native.country %in% europe] <- "Europe"
+data$native.country[data$native.country %in% other] <- "Other"
+table(data$native.country)
+data$native.country <- as.factor(data$native.country)
+levels(data$native.country)
+## ----------------------------------------------------------------------------------
+## Reduce the level of native country into 5 levels "Asia", "Europe", "North America"
+## "Other", "South America"
+## ----------------------------------------------------------------------------------
+
+ggplot(data, aes(x=data$native.country,fill=data$income)) + geom_bar(position = "stack", color = "black") + theme(axis.text.x=element_text(angle = 70 , hjust= 1, size=7))
+## ----------------------------------------------------------------------------------
+## Native conutry of the Majority of the population is North America. 
+## ----------------------------------------------------------------------------------
+```
+
+9.2. Reducing/Combining  levels of native country in testing data.
+
+```{r}
+testingdata$native.country <- as.character(testingdata$native.country)
+testingdata$native.country[testingdata$native.country %in% northAmerica] <- "North America"
+testingdata$native.country[testingdata$native.country %in% asia] <- "Asia"
+testingdata$native.country[testingdata$native.country %in% southAmerica] <- "South America"
+testingdata$native.country[testingdata$native.country %in% europe] <- "Europe"
+testingdata$native.country[testingdata$native.country %in% other] <- "Other"
+table(testingdata$native.country)
+testingdata$native.country <- as.factor(testingdata$native.country)
+levels(testingdata$native.country)
+
+```
+
+
+10.1. Combining categories of work class in training data.
+
+```{r}
+ggplot(data, aes(x=data$workclass,fill=data$income)) + geom_bar(position = "stack", color = "black") + ggtitle('     Income levels in different Work Class')+ theme(axis.text.x=element_text(angle = 70 , hjust= 1, size=7)) 
+
+data$workclass <- gsub('^Federal-gov', 'Government', data$workclass)
+data$workclass <- gsub('^Local-gov', 'Government', data$workclass)
+data$workclass <- gsub('^State-gov', 'Government', data$workclass) 
+
+
+data$workclass <- gsub('^Self-emp-inc', 'Self-Employed', data$workclass)
+data$workclass <- gsub('^Self-emp-not-inc', 'Self-Employed', data$workclass)
+
+data$workclass <- gsub('^Other', 'Other', data$workclass)
+data$workclass <- gsub('^Unknown', 'Other', data$workclass)
+
+data$workclass <- as.factor(data$workclass)
+ggplot(data, aes(x=data$workclass,fill=data$income)) + geom_bar(position = "stack", color = "black") + ggtitle('    Income Levels in different Work Class')+ theme(axis.text.x=element_text(angle = 70 , hjust= 1, size=7)) 
+## ----------------------------------------------------------------
+## Replace Federal-gov, Local_gov and State_gov into government.
+## Self-emp-inc and self-emp-not-inc into Self-Employed.
+## other and unknown into other.
+##  --------------------------------------------------------------
+
+## Observations: Most of the people earning more than 50K are in private sector
+## after that self employment and then Government. 
+
+```
+
+10.2. Combining categories of work class in testing data.
+
+```{r}
+data$workclass <- gsub('^Federal-gov', 'Government', data$workclass)
+data$workclass <- gsub('^Local-gov', 'Government', data$workclass)
+data$workclass <- gsub('^State-gov', 'Government', data$workclass) 
+
+
+data$workclass <- gsub('^Self-emp-inc', 'Self-Employed', data$workclass)
+data$workclass <- gsub('^Self-emp-not-inc', 'Self-Employed', data$workclass)
+
+data$workclass <- gsub('^Other', 'Other', data$workclass)
+data$workclass <- gsub('^Unknown', 'Other', data$workclass)
+data$workclass <- as.factor(data$workclass)
+```
+
+
+11. Relationship between categorical variables and income.
+```{r}
+
+ggplot(data, aes(x=data$education,fill=data$income)) + geom_bar(position = "stack", color = "black") + theme(axis.text.x=element_text(angle = 70 , hjust= 1, size=7))
+
+##-----------------------------------------------------------------------------
+## The plot shows that the maximum number of adults earning income greater than 50K 
+## have bachelor's degree. 
+## In doctorate and masters also, the largest proportion is earning greater than 50 K. 
+## In lower  education levels the largest proportion have income less than 50K. 
+## Higher education results in higher income. 
+##-----------------------------------------------------------------------------
+
+
+ggplot(data, aes(x=data$sex,fill=data$income)) + geom_bar(position = "stack", color = "black") + theme(axis.text.x=element_text(angle = 70 , hjust= 1, size=7))
+##---------------------------------------------------------------------------
+## Ratio of Males earning income greater than 50K are more as compare to female.
+## ---------------------------------------------------------------------------
+
+
+ggplot(data, aes(x=data$race,fill=data$income)) + geom_bar(position = "stack", color = "black") + theme(axis.text.x=element_text(angle = 70 , hjust= 1, size=7))
+
+##-----------------------------------------------------------------------------
+## Observations: Plot shows that in terms of race the highest earning people are  
+## from race White,then Asian-pacific and black.
+##-----------------------------------------------------------------------------
+
+ggplot(data, aes(x=data$marital.status,fill=data$income)) + geom_bar(position = "stack", color = "black") + theme(axis.text.x=element_text(angle = 70 , hjust= 1, size=7))
+
+ggplot(data, aes(x=data$relationship,fill=data$income)) + geom_bar(position = "stack", color = "black") + theme(axis.text.x=element_text(angle = 70 , hjust= 1, size=7))
+
+##-----------------------------------------------------------------------------
+## Observations: Plots shows that married people are earning more than 50k.
+##-----------------------------------------------------------------------------
+
+ggplot(data, aes(x=data$occupation,fill=data$income)) + geom_bar(position = "stack", color = "black") + theme(axis.text.x=element_text(angle = 70 , hjust= 1, size=7))
+##-----------------------------------------------------------------------------
+## Observations: Plots shows that in terms of occuupation people with managerical job and 
+## professors are earning more than 50 K in the highest ratio. 
+## Showing that people at highest post are earning more.  
+##-----------------------------------------------------------------------------
+
+```
+
+Saving the clean test and train data  in testdata.csv and traindata.csv respectively.
+```{r}
+write.csv(data, "traindata.csv", row.names = FALSE)
+write.csv(testingdata, "testdata.csv", row.names = FALSE)
+
+```
+Correlation Plot
+M <- cor(mtcars)
+corrplot(M, method="number")
+
+
