@@ -1,0 +1,148 @@
+---
+title: "Machine Learning Models"
+output: pdf_document
+---
+
+1. Load Libraries.
+```{r library}
+library(randomForest)
+library(ROCR)
+library(caret)
+library(rpart)
+```
+
+
+2. Load test data.
+```{r census}
+
+setwd("c:/Ryerson University/Semester 4/ProjectCode")
+loc<-getwd()
+traindata <- read.csv(file="traindata.csv",header=TRUE,sep=",")
+testdata1 <- read.csv(file="testdata1.csv",header=TRUE,sep=",")
+dim(testdata1)
+```
+
+
+
+
+```{r}
+
+##############################################################
+#                       LOGISTIC REGRESION
+# Regression coefficients represent the mean change in the response variable for one unit of change # in the predictor variable while holding other predictors in the model constant.
+##############################################################
+m1 <- glm(income ~ age+ workclass+ education+marital.status+ occupation+ sex +hours.per.week, data = traindata, family = binomial('logit'))
+summary(m1)
+
+
+predictiontrain <- predict(m1,traindata,type='response')
+pred1 <- rep('<=50K', length(predictiontrain))
+pred1[predictiontrain>=.5] <- '>50K'
+tb1 <- table(pred1, traindata$income)
+tb1
+
+
+prob <- predict(m1, testdata1, type = 'response')
+prediction <- predict(m1,testdata1,type='response')
+
+########################################################################
+# P values shows that Age ,workclass, education, marital status, occupation,
+# race, sex, hours per week  are the significant attributes.
+########################################################################
+pred <- rep('<=50K', length(prob))
+pred[prob>=.5] <- '>50K'
+tb <- table(pred, testdata1$income)
+tb
+
+
+# Confusion matrix shows that it has an Accuracy of 83.01%
+# misclasification 17%. 
+
+
+
+```
+
+
+
+##############################################################
+# DECISION TREE
+##############################################################
+```{r}
+Dtree<- rpart(income~ age+ workclass+ education+marital.status+ occupation+ sex +hours.per.week, data = traindata, method='class',cp =1e-3)
+Dtree.Ptrain <- predict(Dtree,newdata= traindata, type = 'class')
+confusionMatrix(traindata$income,Dtree.Ptrain)
+
+
+Dtree.pred.prob <- predict(Dtree, newdata = testdata1, type = 'prob')
+Dtree.pred <- predict(Dtree, newdata = testdata1, type = 'class')
+confusionMatrix(testdata1$income,Dtree.pred)
+
+```
+
+##############################################################
+#RANDOM FOREST
+##############################################################
+```{r}
+library(randomForest)
+levels(testdata1$workclass) <- levels(traindata$workclass)
+rforest <- randomForest(income ~ age+ workclass+ education+marital.status+occupation+ sex+hours.per.week, data = traindata, ntree = 500)
+rforest.pred.prob <- predict(rforest, newdata = testdata1, type = 'prob')
+rforest.pred <- predict(rforest, newdata = testdata1, type = 'class')
+# confusion matrix 
+tb3 <- table(rforest.pred, testdata1$income)
+tb3
+confusionMatrix(testdata1$income,rforest.pred)
+varImpPlot (rforest)
+```
+
+```{r}
+
+## LINEAR REGRESION
+pr  <- prediction(prob,testdata1$income)
+perf <- performance(pr,measure="tpr", x.measure="fpr")
+DtFrameReg <- data.frame(FP=perf@x.values[[1]],TP=perf@y.values[[1]])
+aucRegresion <- performance(pr,measure='auc')@y.values[[1]]
+aucRegresion
+  
+###DECISION TREE
+prtree <- prediction(Dtree.pred.prob[,2],testdata1$income)
+perftree  <- performance(prtree,measure="tpr",x.measure="fpr")
+DTFrametree <- data.frame(FP=perftree@x.values[[1]],TP=perftree@y.values[[1]])
+auctree <- performance(prtree, measure='auc')@y.values[[1]]
+auctree
+
+###RANDOM FOREST
+prRForest <- prediction(rforest.pred.prob[,2],testdata1$income)
+perfRForest  <- performance(prRForest,measure="tpr",x.measure="fpr")
+DTFrameRForest <- data.frame(FP=perfRForest@x.values[[1]],TP=perfRForest@y.values[[1]])
+aucFtree <- performance(prRForest, measure='auc')@y.values[[1]]
+aucFtree
+
+# plot ROC curve for logistic regression
+g <- ggplot() + 
+  geom_line(data = DtFrameReg, aes(x = FP, y = TP, color = 'Logistic Regression')) + 
+  geom_line(data = DTFrametree, aes(x = FP, y = TP, color = 'Decision Tree')) + 
+  geom_line(data = DTFrameRForest, aes(x = FP, y = TP, color = 'Random Forest')) + 
+  geom_segment(aes(x = 0, xend = 1, y = 0, yend = 1)) +
+  ggtitle('ROC Curve') + 
+  labs(x = 'False Positive Rate', y = 'True Positive Rate') 
+
+
+g +  scale_colour_manual(name = 'Classifier', values = c('Logistic Regression'='#E69F00', 
+                                               'Decision Tree'='#56B4E9', 'Random Forest'='#009E73'))
+                                               
+
+
+auc <- rbind(aucRegresion,auctree,aucFtree)
+rownames(auc) <- (c('Logistic Regression', 'Decision Tree', 'Random Forest'))
+colnames(auc) <- 'Area Under ROC Curve'
+round(auc, 4)
+
+
+
+
+
+
+```
+
+
